@@ -283,20 +283,27 @@
 
         .location-days {
             display: flex;
-            flex-wrap: wrap;
+            flex-direction: column;
             gap: 0.3rem;
             margin-top: 0.75rem;
             padding-top: 0.75rem;
             border-top: 1px solid #e0e0e0;
         }
+        
+        .location-days-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.3rem;
+        }
 
         .day-badge {
-            padding: 0.25rem 0.5rem;
+            padding: 0.35rem 0.6rem;
             background: #e8f0fe;
             color: #1967d2;
             border-radius: 4px;
             font-size: 0.7rem;
             font-weight: 600;
+            white-space: nowrap;
         }
 
         .day-badge.active-day {
@@ -579,13 +586,18 @@
                         ` : ''}
                         
                         <div class="location-days">
+                            <div style="font-size: 0.75rem; color: #666; font-weight: 600;">Open:</div>
+                            <div class="location-days-grid">
                             ${dayNames.map(day => {
                                 if (loc[day]) {
                                     const isSelected = selectedDays.has(day);
-                                    return `<span class="day-badge ${isSelected ? 'active-day' : ''}">${day.slice(0, 3).toUpperCase()}</span>`;
+                                    const hours = loc.hours && loc.hours[day] ? loc.hours[day] : '';
+                                    const displayText = hours ? `${day.slice(0, 3).toUpperCase()}: ${hours}` : day.slice(0, 3).toUpperCase();
+                                    return `<span class="day-badge ${isSelected ? 'active-day' : ''}" title="${day.charAt(0).toUpperCase() + day.slice(1)}${hours ? ': ' + hours : ''}">${displayText}</span>`;
                                 }
                                 return '';
                             }).join('')}
+                            </div>
                         </div>
                     </div>
                 `;
@@ -609,10 +621,25 @@
                 if (loc.lat && loc.lng) {
                     const marker = L.marker([loc.lat, loc.lng]).addTo(map);
                     
+                    // Build hours display
+                    let hoursHTML = '';
+                    if (loc.hours) {
+                        const openDays = dayNames.filter(day => loc[day] && loc.hours[day]);
+                        if (openDays.length > 0) {
+                            hoursHTML = '<div class="popup-detail">🕒 ' + 
+                                openDays.map(day => `${day.charAt(0).toUpperCase() + day.slice(1)}: ${loc.hours[day]}`).join('<br>&nbsp;&nbsp;&nbsp;&nbsp;') + 
+                                '</div>';
+                        } else if (loc.schedule) {
+                            hoursHTML = `<div class="popup-detail">🕒 ${loc.schedule}</div>`;
+                        }
+                    } else if (loc.schedule) {
+                        hoursHTML = `<div class="popup-detail">🕒 ${loc.schedule}</div>`;
+                    }
+                    
                     const popupContent = `
                         <div class="popup-name">${loc.name}</div>
                         ${loc.location ? `<div class="popup-detail">📍 ${loc.location}</div>` : ''}
-                        ${loc.schedule ? `<div class="popup-detail">🕒 ${loc.schedule}</div>` : ''}
+                        ${hoursHTML}
                         ${loc.type ? `<div class="popup-detail">🏪 ${loc.type}</div>` : ''}
                     `;
                     
@@ -693,24 +720,31 @@
 
         function exportToCSV() {
             const filteredLocations = filterLocations();
-            const headers = ['Name', 'Location', 'Schedule', 'Type', 'Eligibility', 'Phone', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+            const headers = ['Name', 'Location', 'Phone', 'Type', 'Schedule', 'Eligibility', 'Mon', 'Mon Hours', 'Tue', 'Tue Hours', 'Wed', 'Wed Hours', 'Thu', 'Thu Hours', 'Fri', 'Fri Hours', 'Sat', 'Sat Hours', 'Sun', 'Sun Hours'];
             
             const csvContent = [
                 headers.join(','),
                 ...filteredLocations.map(loc => [
                     `"${loc.name || ''}"`,
                     `"${loc.location || ''}"`,
-                    `"${loc.schedule || ''}"`,
-                    `"${loc.type || ''}"`,
-                    `"${loc.eligibility || ''}"`,
                     `"${loc.phone || ''}"`,
+                    `"${loc.type || ''}"`,
+                    `"${loc.schedule || ''}"`,
+                    `"${loc.eligibility || ''}"`,
                     loc.monday ? 'Y' : 'N',
+                    `"${loc.hours && loc.hours.monday || ''}"`,
                     loc.tuesday ? 'Y' : 'N',
+                    `"${loc.hours && loc.hours.tuesday || ''}"`,
                     loc.wednesday ? 'Y' : 'N',
+                    `"${loc.hours && loc.hours.wednesday || ''}"`,
                     loc.thursday ? 'Y' : 'N',
+                    `"${loc.hours && loc.hours.thursday || ''}"`,
                     loc.friday ? 'Y' : 'N',
+                    `"${loc.hours && loc.hours.friday || ''}"`,
                     loc.saturday ? 'Y' : 'N',
-                    loc.sunday ? 'Y' : 'N'
+                    `"${loc.hours && loc.hours.saturday || ''}"`,
+                    loc.sunday ? 'Y' : 'N',
+                    `"${loc.hours && loc.hours.sunday || ''}"`,
                 ].join(','))
             ].join('\n');
 
