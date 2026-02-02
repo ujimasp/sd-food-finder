@@ -549,7 +549,8 @@
                 const isActuallyOpenToday = isOpenToday(loc);
                 return `
                     <div class="location-card">
-                        ${isOpenToday ? '<div class="open-now-badge">OPEN TODAY</div>' : ''}
+                        ${isActuallyOpenToday ? '<div class="open-now-badge">OPEN TODAY</div>' : ''}
+
                         <div class="location-name">${loc.name || 'Unknown Location'}</div>
                         
                         ${loc.location ? `
@@ -721,7 +722,7 @@
 
         function getWeekOfMonth(date) {
             const day = date.getDate();
-            const dayOfWeek = date.getDay();
+            //const dayOfWeek = date.getDay();
     
             // Calculate which occurrence (1st, 2nd, 3rd, 4th)
             const occurrence = Math.ceil(day / 7);
@@ -733,7 +734,7 @@
             return { occurrence, isLast };
         }
 
-        function isOpenToday(location) {
+       function isOpenToday(location) {
             const today = new Date();
             const dayName = dayNames[today.getDay()];
             
@@ -751,15 +752,14 @@
             const { occurrence, isLast } = getWeekOfMonth(today);
             
             // Check if 'last' and it is the last occurrence
-            if (frequency === 'last' && isLast) return true;
+            if (frequency.includes('last') && isLast) return true;
             
-            // Split comma-separated values (e.g., "1st,3rd")
+            // Split comma-separated values (e.g., "1st, 3rd")
             const patterns = frequency.split(',').map(p => p.trim());
             
             // Check if current occurrence matches
             const occurrenceStr = ['', '1st', '2nd', '3rd', '4th'][occurrence];
             if (patterns.includes(occurrenceStr)) return true;
-            if (patterns.includes(occurrence.toString())) return true;
             
             return false;
         }
