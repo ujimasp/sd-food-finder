@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>San Diego Food Distribution Finder </title>
+    <title>San Diego Food Distribution Finder</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         * {
@@ -379,7 +379,6 @@
     <div class="header">
         <h1>🍎 San Diego Food Distribution Finder</h1>
         <p>Find free food distributions near you, filter by day and location</p>
-        <p> This is maintained by an independent volunteer group and not Feeding San Diego</p>
     </div>
 
     <div class="container">
@@ -429,7 +428,7 @@
                     <option value="name">Sort by Name</option>
                     <option value="location">Sort by Location</option>
                 </select>
-                
+                <button class="export-btn" onclick="exportToCSV()">Export CSV</button>
             </div>
         </div>
 
@@ -459,6 +458,52 @@
         const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
         const today = dayNames[new Date().getDay()];
 
+        // Calculate which week of the month a date falls in
+        function getWeekOfMonth(date) {
+            const day = date.getDate();
+            
+            // Calculate which occurrence (1st, 2nd, 3rd, 4th)
+            const occurrence = Math.ceil(day / 7);
+            
+            // Check if it's the last occurrence
+            const lastDayOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+            const isLast = (day + 7) > lastDayOfMonth;
+            
+            return { occurrence, isLast };
+        }
+
+        // Check if a location is actually open today based on frequency
+        function isOpenToday(location) {
+            const todayDate = new Date();
+            const dayName = dayNames[todayDate.getDay()];
+            
+            // Check if location is open on this day of week
+            if (!location[dayName]) return false;
+            
+            // Get frequency pattern
+            const frequency = location.frequency && location.frequency[dayName];
+            if (!frequency || frequency === '') return true; // If no frequency specified, assume weekly
+            
+            // If weekly, always true
+            if (frequency.toLowerCase() === 'weekly') return true;
+            
+            // Calculate which week we're in
+            const { occurrence, isLast } = getWeekOfMonth(todayDate);
+            
+            // Check if 'last' and it is the last occurrence
+            if (frequency.toLowerCase().includes('last') && isLast) return true;
+            
+            // Split comma-separated values (e.g., "1st,3rd")
+            const patterns = frequency.split(',').map(p => p.trim().toLowerCase());
+            
+            // Check if current occurrence matches
+            const occurrenceStr = ['', '1st', '2nd', '3rd', '4th', '5th'][occurrence];
+            if (patterns.includes(occurrenceStr)) return true;
+            if (patterns.includes(occurrence.toString())) return true;
+            
+            return false;
+        }
+
         async function loadLocations() {
             try {
                 const response = await fetch('feeding_sd_locations.json');
@@ -470,52 +515,9 @@
                     }
                 }
             } catch (error) {
-                console.log('Could not load locations.json, using sample data');
-                // Sample data for demo
-                locations = generateSampleData();
+                console.log('Could not load locations.json');
             }
             renderLocations();
-        }
-
-        function generateSampleData() {
-            return [
-                {
-                    name: "North County Food Distribution",
-                    location: "Vista, CA 92084",
-                    schedule: "Monday, Wednesday, Friday 9:00 AM - 12:00 PM",
-                    type: "Weekly Distribution",
-                    eligibility: "Open to all residents",
-                    monday: true, wednesday: true, friday: true,
-                    lat: 33.2000, lng: -117.2425
-                },
-                {
-                    name: "Central San Diego Food Pantry",
-                    location: "San Diego, CA 92101",
-                    schedule: "Tuesday, Thursday 2:00 PM - 5:00 PM",
-                    type: "Food Pantry",
-                    eligibility: "Income-based eligibility",
-                    tuesday: true, thursday: true,
-                    lat: 32.7157, lng: -117.1611
-                },
-                {
-                    name: "South Bay Weekend Distribution",
-                    location: "Chula Vista, CA 91910",
-                    schedule: "Saturday 10:00 AM - 1:00 PM",
-                    type: "Weekend Distribution",
-                    eligibility: "Families with children priority",
-                    saturday: true,
-                    lat: 32.6401, lng: -117.0842
-                },
-                {
-                    name: "East County Community Center",
-                    location: "El Cajon, CA 92020",
-                    schedule: "Monday-Friday 8:00 AM - 3:00 PM",
-                    type: "Daily Distribution",
-                    eligibility: "Open to all",
-                    monday: true, tuesday: true, wednesday: true, thursday: true, friday: true,
-                    lat: 32.7948, lng: -116.9625
-                }
-            ];
         }
 
         function renderLocations() {
@@ -550,7 +552,6 @@
                 return `
                     <div class="location-card">
                         ${isActuallyOpenToday ? '<div class="open-now-badge">OPEN TODAY</div>' : ''}
-
                         <div class="location-name">${loc.name || 'Unknown Location'}</div>
                         
                         ${loc.location ? `
@@ -660,16 +661,18 @@
 
         function filterLocations() {
             return locations.filter(loc => {
+                // Filter by "Open Today" if active
+                if (todayFilterActive) {
+                    if (!isOpenToday(loc)) return false;
+                }
+
+                // Filter by selected days
                 if (selectedDays.size > 0) {
                     const hasSelectedDay = Array.from(selectedDays).some(day => loc[day]);
                     if (!hasSelectedDay) return false;
                 }
 
-                // If "Open Today" was clicked, only show actually open locations
-                if (todayFilterActive) {
-                    if (!isOpenToday(loc)) return false;
-                }
-
+                // Filter by search query
                 if (searchQuery) {
                     const searchLower = searchQuery.toLowerCase();
                     const matchesSearch = 
@@ -714,54 +717,7 @@
         function selectToday() {
             resetFilters();
             todayFilterActive = true;
-            //selectedDays.add(today);
-            //document.querySelector(`[data-day="${today}"]`).classList.add('active');
-             // Don't use selectedDays, instead filter in renderLocations
             renderLocations();
-        }
-
-        function getWeekOfMonth(date) {
-            const day = date.getDate();
-            //const dayOfWeek = date.getDay();
-    
-            // Calculate which occurrence (1st, 2nd, 3rd, 4th)
-            const occurrence = Math.ceil(day / 7);
-    
-            // Check if it's the last occurrence
-            const lastDayOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-            const isLast = (day + 7) > lastDayOfMonth;
-    
-            return { occurrence, isLast };
-        }
-
-       function isOpenToday(location) {
-            const today = new Date();
-            const dayName = dayNames[today.getDay()];
-            
-            // Check if location is open on this day of week
-            if (!location[dayName]) return false;
-            
-            // Get frequency pattern
-            const frequency = location.frequency && location.frequency[dayName];
-            if (!frequency) return false;
-            
-            // If weekly, always true
-            if (frequency === 'weekly') return true;
-            
-            // Calculate which week we're in
-            const { occurrence, isLast } = getWeekOfMonth(today);
-            
-            // Check if 'last' and it is the last occurrence
-            if (frequency.includes('last') && isLast) return true;
-            
-            // Split comma-separated values (e.g., "1st, 3rd")
-            const patterns = frequency.split(',').map(p => p.trim());
-            
-            // Check if current occurrence matches
-            const occurrenceStr = ['', '1st', '2nd', '3rd', '4th'][occurrence];
-            if (patterns.includes(occurrenceStr)) return true;
-            
-            return false;
         }
 
         function sortLocations(sortBy) {
