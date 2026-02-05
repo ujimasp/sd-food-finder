@@ -1,4 +1,4 @@
-let locations = [];
+        let locations = [];
         let selectedDays = new Set();
         let searchQuery = '';
         let map = null;
